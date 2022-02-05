@@ -60,6 +60,8 @@
 #  include <config.h>
 #endif
 
+#include "zlib.h"
+
 #include <gst/gst.h>
 
 #include "gstgzdec.h"
@@ -231,6 +233,108 @@ gst_gzdec_sink_event (GstPad * pad, GstObject * parent,
   return ret;
 }
 
+
+#define CHUNK 16384
+GstBuffer *decompress(GstBuffer *inputBuffer)
+{
+  GstBuffer *outputBuffer = NULL;
+  GstMemory *memory;
+  outputBuffer = gst_buffer_new ();
+  memory = gst_allocator_alloc (NULL, CHUNK, NULL);
+  gst_buffer_insert_memory (outputBuffer, -1, memory);
+
+    unsigned char out[CHUNK];
+
+  guint8 *inputData;
+  gsize inputDataSize;
+  guint8 *outputData;
+  gsize outputDataSize;
+
+  GstMapInfo map_in;
+  GstMapInfo map_out;
+  if (gst_buffer_map (inputBuffer, &map_in, GST_MAP_READ)) {
+    if (gst_buffer_map (outputBuffer, &map_out, GST_MAP_WRITE)) {
+    } else {
+      // TODO
+      return;
+    }
+  } else {
+    // TODO
+    return;
+  }
+  inputData = map_in.data;
+  inputDataSize = map_in.size;
+  outputData = map_out.data;
+  outputDataSize = map_out.size;
+
+  int ret;
+  unsigned have;
+  z_stream strm;
+
+  /* allocate inflate state */
+  strm.zalloc = Z_NULL;
+  strm.zfree = Z_NULL;
+  strm.opaque = Z_NULL;
+  strm.avail_in = 0;
+  strm.next_in = Z_NULL;
+  // 15 zlib fomat, 32 zlib and gzip format, 16 gzip format
+  ret = inflateInit2(&strm, 32);
+  if (ret != Z_OK)
+      return ret;
+
+  /* decompress until deflate stream ends or end of file */
+  do {
+      strm.avail_in = inputDataSize;
+      printf("RAW input data: %s\n", inputData);
+      // if (ferror(source)) {
+      //     (void)inflateEnd(&strm);
+      //     return Z_ERRNO;
+      // }
+      if (strm.avail_in == 0)
+          break;
+      strm.next_in = inputData;
+
+      /* run inflate() on input until output buffer not full */
+      do {
+          strm.avail_out = CHUNK;
+          strm.next_out = outputData;
+          ret = inflate(&strm, Z_NO_FLUSH);
+          // assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
+          switch (ret) {
+          case Z_NEED_DICT:
+              ret = Z_DATA_ERROR;     /* and fall through */
+          case Z_DATA_ERROR:
+          case Z_MEM_ERROR:
+              (void)inflateEnd(&strm);
+              return ret;
+          }
+          have = CHUNK - strm.avail_out;
+          
+        printf("Decompressed %s\n", outputData);
+          // if (fwrite(out, 1, have, dest) != have || ferror(dest)) {
+          //     (void)inflateEnd(&strm);
+          //     return Z_ERRNO;
+          // }
+      } while (strm.avail_out == 0);
+
+      /* done when inflate() says it's done */
+  } while (ret != Z_STREAM_END);
+
+  /* clean up and return */
+  (void)inflateEnd(&strm);
+
+  // TODO check this
+  //return ret == Z_STREAM_END ? Z_OK : Z_DATA_ERROR;
+
+
+
+  // Clean up
+  gst_buffer_unmap (inputBuffer, &map_in);
+  gst_buffer_unmap (outputBuffer, &map_out);
+  return outputBuffer;
+}
+
+
 /* chain function
  * this function does the actual processing
  */
@@ -238,14 +342,19 @@ static GstFlowReturn
 gst_gzdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
   Gstgzdec *filter;
+  GstBuffer *outbuf;
 
   filter = GST_GZDEC (parent);
 
-  if (filter->silent == FALSE)
-    g_print ("I'm plugged, therefore I'm in.\n");
+  outbuf = decompress (buf);
+  gst_buffer_unref (buf);
+  if (!outbuf) {
+    /* something went wrong - signal an error */
+    GST_ELEMENT_ERROR (GST_ELEMENT (filter), STREAM, FAILED, (NULL), (NULL));
+    return GST_FLOW_ERROR;
+  }
 
-  /* just push out the incoming buffer without touching it */
-  return gst_pad_push (filter->srcpad, buf);
+  return gst_pad_push (filter->srcpad, outbuf);
 }
 
 

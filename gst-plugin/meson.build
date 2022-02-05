@@ -9,6 +9,8 @@ cdata.set_quoted('GST_PACKAGE_NAME', 'GStreamer template Plug-ins')
 cdata.set_quoted('GST_PACKAGE_ORIGIN', 'https://gstreamer.freedesktop.org')
 configure_file(output : 'config.h', configuration : cdata)
 
+zdep = dependency('zlib', version : '>=1.2.8')
+
 gstaudio_dep = dependency('gstreamer-audio-1.0',
     fallback: ['gst-plugins-base', 'audio_dep'])
 
@@ -38,15 +40,17 @@ gstaudiofilterexample = library('gstaudiofilterexample',
   install_dir : plugins_install_dir,
 )
 
-# The TEMPLATE Plugin
-### gstTEMPLATE_sources = [
-###  'src/gstTEMPLATE.c',
-###  ]
+# The gzdec Plugin
+ gstgzdec_sources = [
+  'src/gstgzdec.c',
+  ]
 
-###gstTEMPLATEexample = library('gstTEMPLATE',
-###  gstTEMPLATE_sources,
-###  c_args: plugin_c_args,
-###  dependencies : [gst_dep, gstbase_dep],
-###  install : true,
-###  install_dir : plugins_install_dir,
-###)
+gstgzdec = library('gstgzdec',
+  gstgzdec_sources,
+  c_args: plugin_c_args,
+  dependencies : [gst_dep, gstbase_dep, zdep],
+  install : true,
+  install_dir : plugins_install_dir,
+)
+
+
