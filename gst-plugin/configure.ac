@@ -1,4 +1,9 @@
 STPB_REQUIRED=1.0.0
+AC_INIT([gzdec],[1.0.0])
+
+dnl required versions of gstreamer and plugins-base
+GST_REQUIRED=1.0.0
+GSTPB_REQUIRED=1.0.0
 
 AC_CONFIG_SRCDIR([src/gstgzdec.c])
 AC_CONFIG_HEADERS([config.h])
@@ -11,7 +16,7 @@ AM_MAINTAINER_MODE([enable])
 
 dnl check for tools (compiler etc.)
 AC_PROG_CXX
-AC_LANG([C++])
+AC_LANG([C])
 
 dnl required version of libtool
 LT_PREREQ([2.2.6])
