@@ -308,14 +308,12 @@ GstBuffer *decompress(GstBuffer *inputBuffer)
   inputDataSize = map_in.size;
   outputData = map_out.data;
 
-  printf("size is %d\n", map_in.size);
-
   // Error handler for zlib
   int ret;
   // Available data in the ouput buffer
   unsigned have;
 
-  printf("RAW input data size: %d\n", inputDataSize);
+  GST_DEBUG("RAW input data size: %d\n", inputDataSize);
   strm.avail_in = inputDataSize;
   if (strm.avail_in == 0) {
       return NULL;
@@ -336,8 +334,7 @@ GstBuffer *decompress(GstBuffer *inputBuffer)
           return NULL;
       }
       have = ChunkSize - strm.avail_out;
-      //printf("Decompressed %s\n", outputData);
-      printf("Decompressed size %d\n", have);
+      GST_DEBUG("Decompressed size %d\n", have);
 
       // Last chunk
       if (have <= ChunkSize) {
@@ -395,6 +392,7 @@ gst_gzdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   gst_buffer_unref(buf);
   if (!outbuf) {
+    GST_ERROR("Error when inflating the data in the pipeline");
     /* something went wrong - signal an error */
     GST_ELEMENT_ERROR (GST_ELEMENT (filter), STREAM, FAILED, (NULL), (NULL));
     return GST_FLOW_ERROR;
@@ -416,7 +414,7 @@ gzdec_init (GstPlugin * gzdec)
    * exchange the string 'Template gzdec' with your description
    */
   GST_DEBUG_CATEGORY_INIT (gst_gzdec_debug, "gzdec",
-      0, "Template gzdec");
+      0, "Debug for gzdec");
 
   return GST_ELEMENT_REGISTER (gzdec, gzdec);
 }
