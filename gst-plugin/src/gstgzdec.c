@@ -268,13 +268,15 @@ GstBuffer *decompress(GstBuffer *inputBuffer)
   const unsigned long long int ChunkSize = 16384;
 
   GstBuffer *outputBuffer = gst_buffer_new();
-  GstMemory *memory;
+  if (!outputBuffer) {
+    return NULL;
+  }
+  GstMemory *memory = NULL;
 
   // Intermediate buffer
   guint8 *inputData;
   gsize inputDataSize;
   guint8 *outputData;
-  gsize outputDataSize;
 
   // Mapping structures
   GstMapInfo map_in;
@@ -305,91 +307,75 @@ GstBuffer *decompress(GstBuffer *inputBuffer)
   inputData = map_in.data;
   inputDataSize = map_in.size;
   outputData = map_out.data;
-  outputDataSize = map_out.size;
 
   printf("size is %d\n", map_in.size);
 
-  // Error handler gor zlib
+  // Error handler for zlib
   int ret;
   // Available data in the ouput buffer
   unsigned have;
 
-  {
-      strm.avail_in = inputDataSize;
-      printf("RAW input data size: %d\n", inputDataSize);
-      // if (ferror(source)) {
-      //     (void)inflateEnd(&strm);
-      //     return Z_ERRNO;
-      // }
-      if (strm.avail_in == 0) {
+  printf("RAW input data size: %d\n", inputDataSize);
+  strm.avail_in = inputDataSize;
+  if (strm.avail_in == 0) {
+      return NULL;
+  }
+  strm.next_in = inputData;
+
+  /* run inflate() on input until output buffer not full */
+  do {
+      strm.avail_out = ChunkSize;
+      strm.next_out = outputData;
+      ret = inflate(&strm, Z_NO_FLUSH);
+      switch (ret) {
+      case Z_NEED_DICT:
+          ret = Z_DATA_ERROR;     /* and fall through */
+      case Z_DATA_ERROR:
+      case Z_MEM_ERROR:
+          (void)inflateEnd(&strm);
           return NULL;
       }
-      strm.next_in = inputData;
+      have = ChunkSize - strm.avail_out;
+      //printf("Decompressed %s\n", outputData);
+      printf("Decompressed size %d\n", have);
 
-      /* run inflate() on input until output buffer not full */
-      do {
-          strm.avail_out = ChunkSize;
-          strm.next_out = outputData;
-          ret = inflate(&strm, Z_NO_FLUSH);
-          // assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
-          switch (ret) {
-          case Z_NEED_DICT:
-              ret = Z_DATA_ERROR;     /* and fall through */
-          case Z_DATA_ERROR:
-          case Z_MEM_ERROR:
-              (void)inflateEnd(&strm);
-              return NULL;
-          }
-          have = ChunkSize - strm.avail_out;
-          //printf("Decompressed %s\n", outputData);
-          printf("Decompressed size %d\n", have);
+      // Last chunk
+      if (have <= ChunkSize) {
+        // Allocate more data for the next output buffer
+        GstMemory *lastChunkMemory = gst_allocator_alloc(NULL, have, NULL);
+        lastChunkMemory = gst_memory_copy(memory, 0, have);
+        gst_buffer_insert_memory(outputBuffer, -1, lastChunkMemory);
+        // Release memory by itselft since that memory it is
+        // not inserted into the buffer
+        gst_memory_unmap(memory, &map_out);
+        gst_allocator_free(NULL, memory);
+      } else {
+        // Release memory by itselft since that memory it is
+        // not inserted into the buffer
+        gst_memory_unmap(memory, &map_out);
+        // Append to the buffer current memory data
+        gst_buffer_insert_memory(outputBuffer, -1, memory);
+        //gst_allocator_free(NULL, memory);
+        //gst_memory_unref(memory);
+        // Allocate more data for the next output buffer
+        gst_memory_init(memory,
+                        0,
+                        NULL,
+                        NULL,
+                        ChunkSize,
+                        NULL,
+                        0,
+                        0);
+        if (!gst_memory_map(memory, &map_out, GST_MAP_WRITE)) {
+          return NULL;
+        }
+        outputData = map_out.data;
+      }
+  } while (strm.avail_out == 0);
 
-          // Last chunk
-          if (have <= ChunkSize) {
-            // Allocate more data for the next output buffer
-            GstMemory *lastChunkMemory = gst_allocator_alloc(NULL, have, NULL);
-            lastChunkMemory = gst_memory_copy(memory, 0, have);
-            gst_buffer_insert_memory(outputBuffer, -1, lastChunkMemory);
-            // Release memory by itselft since that memory it is
-            // not inserted into the buffer
-            gst_memory_unmap(memory, &map_out);
-            gst_allocator_free(NULL, memory);
-          } else {
-            // Release memory by itselft since that memory it is
-            // not inserted into the buffer
-            gst_memory_unmap(memory, &map_out);
-            // Append to the buffer current memory data
-            gst_buffer_insert_memory(outputBuffer, -1, memory);
-            //gst_allocator_free(NULL, memory);
-            //gst_memory_unref(memory);
-            // Allocate more data for the next output buffer
-            gst_memory_init(memory,
-                            0,
-                            NULL,
-                            NULL,
-                            ChunkSize,
-                            NULL,
-                            0,
-                            0);
-            if (!gst_memory_map(memory, &map_out, GST_MAP_WRITE)) {
-              return NULL;
-            }
-            outputData = map_out.data;
-            outputDataSize = map_out.size;
-          }
-      } while (strm.avail_out == 0);
-
-      /* done when inflate() says it's done */
-  } //while (ret != Z_STREAM_END);
-
-
-  // TODO check this
-  //return ret == Z_STREAM_END ? Z_OK : Z_DATA_ERROR;
-
-
-
-  // Clean up
+  // Clean up the input
   gst_buffer_unmap (inputBuffer, &map_in);
+
   return outputBuffer;
 }
 
