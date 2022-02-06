@@ -264,32 +264,44 @@ gst_gzdec_sink_event (GstPad * pad, GstObject * parent,
 
 GstBuffer *decompress(GstBuffer *inputBuffer)
 {
-  GstBuffer *outputBuffer = NULL;
+  // Default ChunkSize
+  const unsigned long long int ChunkSize = 16384;
+
+  GstBuffer *outputBuffer = gst_buffer_new();
   GstMemory *memory;
 
-  unsigned long long int ChunkSize = 0;
-
+  // Intermediate buffer
   guint8 *inputData;
   gsize inputDataSize;
   guint8 *outputData;
   gsize outputDataSize;
 
+  // Mapping structures
   GstMapInfo map_in;
   GstMapInfo map_out;
+
   if (gst_buffer_map (inputBuffer, &map_in, GST_MAP_READ)) {
-    ChunkSize = map_in.size;
-    outputBuffer = gst_buffer_new();
     memory = gst_allocator_alloc(NULL, ChunkSize, NULL);
-    gst_buffer_insert_memory(outputBuffer, -1, memory);
-    if (gst_buffer_map (outputBuffer, &map_out, GST_MAP_WRITE)) {
-    } else {
-      // TODO
-      return;
+    // gst_memory_init(memory,
+    //                 0,
+    //                 NULL,
+    //                 NULL,
+    //                 ChunkSize,
+    //                 0,
+    //                 0,
+    //                 ChunkSize);
+
+
+    if (!gst_memory_map (memory, &map_out, GST_MAP_WRITE)) {
+      GST_ELEMENT_ERROR (GST_ELEMENT (NULL), STREAM, FAILED, (NULL), (NULL));
+      return NULL;
     }
   } else {
-    // TODO
-    return;
+    GST_ELEMENT_ERROR (GST_ELEMENT (NULL), STREAM, FAILED, (NULL), (NULL));
+    return NULL;
   }
+
+  // Initialize mapping
   inputData = map_in.data;
   inputDataSize = map_in.size;
   outputData = map_out.data;
@@ -297,19 +309,21 @@ GstBuffer *decompress(GstBuffer *inputBuffer)
 
   printf("size is %d\n", map_in.size);
 
+  // Error handler gor zlib
   int ret;
+  // Available data in the ouput buffer
   unsigned have;
 
-  /* decompress until deflate stream ends or end of file */
-  do {
+  {
       strm.avail_in = inputDataSize;
       printf("RAW input data size: %d\n", inputDataSize);
       // if (ferror(source)) {
       //     (void)inflateEnd(&strm);
       //     return Z_ERRNO;
       // }
-      if (strm.avail_in == 0)
-          break;
+      if (strm.avail_in == 0) {
+          return NULL;
+      }
       strm.next_in = inputData;
 
       /* run inflate() on input until output buffer not full */
@@ -324,19 +338,49 @@ GstBuffer *decompress(GstBuffer *inputBuffer)
           case Z_DATA_ERROR:
           case Z_MEM_ERROR:
               (void)inflateEnd(&strm);
-              return ret;
+              return NULL;
           }
           have = ChunkSize - strm.avail_out;
           //printf("Decompressed %s\n", outputData);
-          printf("Decompressed size %d\n", ChunkSize);
-          // if (fwrite(out, 1, have, dest) != have || ferror(dest)) {
-          //     (void)inflateEnd(&strm);
-          //     return Z_ERRNO;
-          // }
+          printf("Decompressed size %d\n", have);
+
+          // Last chunk
+          if (have <= ChunkSize) {
+            // Allocate more data for the next output buffer
+            GstMemory *lastChunkMemory = gst_allocator_alloc(NULL, have, NULL);
+            lastChunkMemory = gst_memory_copy(memory, 0, have);
+            gst_buffer_insert_memory(outputBuffer, -1, lastChunkMemory);
+            // Release memory by itselft since that memory it is
+            // not inserted into the buffer
+            gst_memory_unmap(memory, &map_out);
+            gst_allocator_free(NULL, memory);
+          } else {
+            // Release memory by itselft since that memory it is
+            // not inserted into the buffer
+            gst_memory_unmap(memory, &map_out);
+            // Append to the buffer current memory data
+            gst_buffer_insert_memory(outputBuffer, -1, memory);
+            //gst_allocator_free(NULL, memory);
+            //gst_memory_unref(memory);
+            // Allocate more data for the next output buffer
+            gst_memory_init(memory,
+                            0,
+                            NULL,
+                            NULL,
+                            ChunkSize,
+                            NULL,
+                            0,
+                            0);
+            if (!gst_memory_map(memory, &map_out, GST_MAP_WRITE)) {
+              return NULL;
+            }
+            outputData = map_out.data;
+            outputDataSize = map_out.size;
+          }
       } while (strm.avail_out == 0);
 
       /* done when inflate() says it's done */
-  } while (ret != Z_STREAM_END);
+  } //while (ret != Z_STREAM_END);
 
 
   // TODO check this
@@ -358,7 +402,7 @@ static GstFlowReturn
 gst_gzdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
   Gstgzdec *filter;
-  GstBuffer *outbuf;
+  GstBuffer *outbuf = NULL;
 
   filter = GST_GZDEC (parent);
 
