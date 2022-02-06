@@ -390,7 +390,6 @@ GstBuffer *decompress(GstBuffer *inputBuffer)
 
   // Clean up
   gst_buffer_unmap (inputBuffer, &map_in);
-  gst_buffer_unmap (outputBuffer, &map_out);
   return outputBuffer;
 }
 
