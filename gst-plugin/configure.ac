@@ -2,7 +2,7 @@ STPB_REQUIRED=1.0.0
 AC_INIT([gzdec],[1.0.0])
 
 dnl required versions of gstreamer and plugins-base
-GST_REQUIRED=1.0.0
+GST_REQUIRED=1.19.0
 GSTPB_REQUIRED=1.0.0
 
 AC_CONFIG_SRCDIR([src/gstgzdec.c])
@@ -30,8 +30,7 @@ AC_CHECK_PROG(HAVE_PKGCONFIG, pkg-config, [ ], [
 dnl Check for the required version of GStreamer core (and gst-plugins-base)
 dnl This will export GST_CFLAGS and GST_LIBS variables for use in Makefile.am
 dnl
-dnl If you need libraries from gst-plugins-base here, also add:
-nl etc.
+dnl If you need libraries from gst-plugins-base here, also add:nl etc.
 PKG_CHECK_MODULES(GST, [
   gstreamer-1.0 >= $GST_REQUIRED
 ], [
@@ -49,8 +48,7 @@ PKG_CHECK_MODULES(GST, [
 
 dnl check if compiler understands -Wall (if yes, add -Wall to GST_CFLAGS)
 AC_MSG_CHECKING([to see if compiler understands -Wall])
-save_CFLAGS="$CFLAGS"
-CFLAGS="$CFLAGS -Wall"
+CFLAGS="$CFLAGS -Wall "
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([ ], [ ])], [
   GST_CFLAGS="$GST_CFLAGS -Wall"
   AC_MSG_RESULT([yes])

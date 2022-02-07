@@ -2,7 +2,7 @@
  * GStreamer
  * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
- * Copyright (C) 2022 root <<user@hostname.org>>
+ * Copyright (C) 2022 Diego Nieto <diego.nieto.m@outlook.com>
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -424,4 +424,4 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     gzdec,
     "gzdec",
     gzdec_init,
-    PACKAGE_VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)
+    PACKAGE_VERSION, "LGPL", "GStreamer template Plug-ins", "https://gstreamer.freedesktop.org")
