@@ -46,7 +46,7 @@
 /**
  * SECTION:element-gzdec
  *
- * FIXME:Describe gzdec here.
+ * gzdec decompress gzip streams
  *
  * <refsect2>
  * <title>Example launch line</title>
@@ -71,6 +71,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_gzdec_debug);
 
 // zlib structure to inflate
 static z_stream strm;
+
 
 /* Filter signals and args */
 enum
@@ -168,6 +169,7 @@ gst_gzdec_init (Gstgzdec * filter)
   gst_element_add_pad (GST_ELEMENT (filter), filter->srcpad);
 
   filter->silent = FALSE;
+  filter->initialized = FALSE;
 }
 
 static void
@@ -212,8 +214,6 @@ gst_gzdec_sink_event (GstPad * pad, GstObject * parent,
   Gstgzdec *filter;
   gboolean ret;
 
-  printf(" ------- NEW EVENT \n");
-
   filter = GST_GZDEC (parent);
 
   GST_LOG_OBJECT (filter, "Received %s event: %" GST_PTR_FORMAT,
@@ -222,7 +222,7 @@ gst_gzdec_sink_event (GstPad * pad, GstObject * parent,
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_STREAM_START:
     {
-      printf(" ------- GST_EVENT_STREAM_START \n");
+      GST_DEBUG("GST_EVENT_STREAM_START\n");
       strm.zalloc = Z_NULL;
       strm.zfree = Z_NULL;
       strm.opaque = Z_NULL;
@@ -230,14 +230,17 @@ gst_gzdec_sink_event (GstPad * pad, GstObject * parent,
       strm.next_in = Z_NULL;
       // 15 zlib fomat, 32 zlib and gzip format, 16 gzip format
       ret = inflateInit2(&strm, 32);
-      if (ret != Z_OK)
-          return ret;
+      if (ret == Z_OK) {
+        filter->initialized = TRUE;
+      } else {
+        GST_WARNING("Error when initializing the zlib\n");
+      }
       ret = gst_pad_event_default (pad, parent, event);
       break;
     }
     case GST_EVENT_EOS:
     {
-      printf(" ------- GST_EVENT_EOS \n");
+      GST_DEBUG("GST_EVENT_EOS\n");
       /* clean up and return */
       (void)inflateEnd(&strm);
       ret = gst_pad_event_default (pad, parent, event);
@@ -284,15 +287,6 @@ GstBuffer *decompress(GstBuffer *inputBuffer)
 
   if (gst_buffer_map (inputBuffer, &map_in, GST_MAP_READ)) {
     memory = gst_allocator_alloc(NULL, ChunkSize, NULL);
-    // gst_memory_init(memory,
-    //                 0,
-    //                 NULL,
-    //                 NULL,
-    //                 ChunkSize,
-    //                 0,
-    //                 0,
-    //                 ChunkSize);
-
 
     if (!gst_memory_map (memory, &map_out, GST_MAP_WRITE)) {
       GST_ELEMENT_ERROR (GST_ELEMENT (NULL), STREAM, FAILED, (NULL), (NULL));
@@ -313,7 +307,7 @@ GstBuffer *decompress(GstBuffer *inputBuffer)
   // Available data in the ouput buffer
   unsigned have;
 
-  GST_DEBUG("RAW input data size: %d\n", inputDataSize);
+  GST_DEBUG("RAW input data size: %lu\n", inputDataSize);
   strm.avail_in = inputDataSize;
   if (strm.avail_in == 0) {
       return NULL;
@@ -336,33 +330,22 @@ GstBuffer *decompress(GstBuffer *inputBuffer)
       have = ChunkSize - strm.avail_out;
       GST_DEBUG("Decompressed size %d\n", have);
 
+
       // Last chunk
       if (have <= ChunkSize) {
         // Allocate more data for the next output buffer
         GstMemory *lastChunkMemory = gst_allocator_alloc(NULL, have, NULL);
         lastChunkMemory = gst_memory_copy(memory, 0, have);
         gst_buffer_insert_memory(outputBuffer, -1, lastChunkMemory);
-        // Release memory by itselft since that memory it is
-        // not inserted into the buffer
-        gst_memory_unmap(memory, &map_out);
-        gst_allocator_free(NULL, memory);
       } else {
         // Release memory by itselft since that memory it is
         // not inserted into the buffer
         gst_memory_unmap(memory, &map_out);
         // Append to the buffer current memory data
         gst_buffer_insert_memory(outputBuffer, -1, memory);
-        //gst_allocator_free(NULL, memory);
-        //gst_memory_unref(memory);
+        gst_memory_unref(memory);
         // Allocate more data for the next output buffer
-        gst_memory_init(memory,
-                        0,
-                        NULL,
-                        NULL,
-                        ChunkSize,
-                        NULL,
-                        0,
-                        0);
+        memory = gst_allocator_alloc(NULL, ChunkSize, NULL);
         if (!gst_memory_map(memory, &map_out, GST_MAP_WRITE)) {
           return NULL;
         }
@@ -387,6 +370,10 @@ gst_gzdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GstBuffer *outbuf = NULL;
 
   filter = GST_GZDEC (parent);
+  if (filter->initialized == FALSE) {
+    GST_ERROR("Processing is not possible. Decoder it is not initialized");
+    return GST_FLOW_ERROR;
+  }
 
   outbuf = decompress(buf);
 

@@ -62,6 +62,8 @@ struct _Gstgzdec
   GstPad *sinkpad, *srcpad;
 
   gboolean silent;
+
+  gboolean initialized;
 };
 
 G_END_DECLS
