@@ -1,3 +1,17 @@
+# GStreamer gzipdecoder-plugin
+
+## Building
+* [GStreamer should be installed in the system]
+* mkdir $HOME/gstreamer -p
+* git clone https://github.com/diegonieto/GStreamer-zipdecoder-plugin.git
+* cd $HOME/gstreamer/gst-template
+* meson $HOME/gstreamer/gst-template/build
+* ninja -C $HOME/gstreamer/gst-template/build install
+
+## Running the filter
+* gst-launch-1.0 filesrc location=file.txt.gz ! gzdec ! filesink location="file.txt"
+
+
 # GStreamer template repository
 
 This git module contains template code for possible GStreamer projects.
