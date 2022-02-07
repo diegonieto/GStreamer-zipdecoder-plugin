@@ -70,6 +70,18 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([ ], [ ])], [
   AC_MSG_RESULT([no])
 ])
 
+dnl Check for the required version of ZLIB
+PKG_CHECK_MODULES(Z, [
+  zlib
+], [
+  AC_SUBST(Z_CFLAGS)
+  AC_SUBST(Z_LIBS)
+], [
+  AC_MSG_ERROR([
+      You need to install zlib.
+  ])
+])
+
 dnl set the plugindir where plugins should be installed (for src/Makefile.am)
 if test "x${prefix}" = "x$HOME"; then
   plugindir="$HOME/.gstreamer-0.10/plugins"
