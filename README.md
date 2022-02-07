@@ -1,5 +1,9 @@
 # GStreamer gzipdecoder-plugin
 
+## Development and test environment
+A convinient docker image is available though:
+* docker pull diegonieto/gstreamer:v0.3
+
 ## Building
 ** GStreamer >1.19 should be installed in the system **
 * mkdir $HOME/gstreamer -p
