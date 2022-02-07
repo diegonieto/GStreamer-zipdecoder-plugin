@@ -46,6 +46,18 @@ PKG_CHECK_MODULES(GST, [
   ])
 ])
 
+dnl Check for the required version of ZLIB
+PKG_CHECK_MODULES(Z, [
+  zlib
+], [
+  AC_SUBST(Z_CFLAGS)
+  AC_SUBST(Z_LIBS)
+], [
+  AC_MSG_ERROR([
+      You need to install zlib.
+  ])
+])
+
 dnl check if compiler understands -Wall (if yes, add -Wall to GST_CFLAGS)
 AC_MSG_CHECKING([to see if compiler understands -Wall])
 CFLAGS="$CFLAGS -Wall "
