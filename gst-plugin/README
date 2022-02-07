@@ -1,1 +1,7 @@
-TODO
+# GStreamer gzipdecoder-plugin
+
+## Building the plugin with autotools
+* cd $HOME/gstreamer/gst-template
+* mkdir build && cd build
+* ../gst-plugin/configure
+* (sudo) make install

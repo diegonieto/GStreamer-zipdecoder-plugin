@@ -1,15 +1,32 @@
 # GStreamer gzipdecoder-plugin
 
 ## Building
-* [GStreamer should be installed in the system]
+** GStreamer >1.19 should be installed in the system **
 * mkdir $HOME/gstreamer -p
+* cd $HOME/gstreamer
+
+### Build gstreamer from sources if you don't have it
+* git clone https://github.com/GStreamer/gstreamer.git
+* cd $HOME/gstreamer/gstreamer
+* meson ../build -Dauto_features=disabled 
+
+### Download the plugin from the repository
 * git clone https://github.com/diegonieto/GStreamer-zipdecoder-plugin.git
+
+### Building the plugin with meson
 * cd $HOME/gstreamer/gst-template
 * meson $HOME/gstreamer/gst-template/build
 * ninja -C $HOME/gstreamer/gst-template/build install
 
+### Building the plugin with autotools
+* Enter to gst-plugin folder to see the README
+
 ## Running the filter
 * gst-launch-1.0 filesrc location=file.txt.gz ! gzdec ! filesink location="file.txt"
+
+or
+
+* GST_PLUGIN_PATH=<path where the lib is installed> gst-launch-1.0 filesrc location=file.txt.gz ! gzdec ! filesink location="file.txt"
 
 
 # GStreamer template repository
