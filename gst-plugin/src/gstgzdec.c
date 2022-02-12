@@ -93,7 +93,7 @@ enum
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("ANY")
+    GST_STATIC_CAPS ("application/x-gzip")
     );
 
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
@@ -252,6 +252,7 @@ gst_gzdec_sink_event (GstPad * pad, GstObject * parent,
 
       gst_event_parse_caps (event, &caps);
       /* do something with the caps */
+      GST_DEBUG ("GST_EVENT_CAPS. caps are %" GST_PTR_FORMAT, caps);
 
       /* and forward */
       ret = gst_pad_event_default (pad, parent, event);
