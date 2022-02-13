@@ -69,7 +69,7 @@
 GST_DEBUG_CATEGORY_STATIC (gst_gzdec_debug);
 #define GST_CAT_DEFAULT gst_gzdec_debug
 
-// zlib structure to inflate
+/* zlib structure to inflate */
 static z_stream strm;
 
 
@@ -233,7 +233,7 @@ gst_gzdec_sink_event (GstPad * pad, GstObject * parent,
       strm.opaque = Z_NULL;
       strm.avail_in = 0;
       strm.next_in = Z_NULL;
-      // 15 zlib fomat, 32 zlib and gzip format, 16 gzip format
+      /* 15 zlib fomat, 32 zlib and gzip format, 16 gzip format */
       ret = inflateInit2(&strm, 32);
       if (ret == Z_OK) {
         filter->initialized = TRUE;
@@ -277,7 +277,7 @@ gst_gzdec_sink_event (GstPad * pad, GstObject * parent,
 
 GstBuffer *gst_gzdec_decompress(GstBuffer *inputBuffer)
 {
-  // Default chunk_size
+  /* Default chunk_size */
   const unsigned long long int chunk_size = 16384;
 
   GstBuffer *outputBuffer = gst_buffer_new();
@@ -286,12 +286,12 @@ GstBuffer *gst_gzdec_decompress(GstBuffer *inputBuffer)
   }
   GstMemory *memory = NULL;
 
-  // Intermediate buffer
+  /* Intermediate buffer */
   guint8 *input_data;
   gsize input_data_size;
   guint8 *output_data;
 
-  // Mapping structures
+  /* Mapping structures */
   GstMapInfo map_in;
   GstMapInfo map_out;
 
@@ -307,14 +307,14 @@ GstBuffer *gst_gzdec_decompress(GstBuffer *inputBuffer)
     return NULL;
   }
 
-  // Initialize mapping
+  /* Initialize mapping */
   input_data = map_in.data;
   input_data_size = map_in.size;
   output_data = map_out.data;
 
-  // Error handler for zlib
+  /* Error handler for zlib */
   int ret;
-  // Available data in the ouput buffer
+  /* Available data in the ouput buffer */
   unsigned have;
 
   GST_DEBUG("RAW input data size: %lu\n", input_data_size);
@@ -341,20 +341,20 @@ GstBuffer *gst_gzdec_decompress(GstBuffer *inputBuffer)
       GST_DEBUG("Decompressed size %d\n", have);
 
 
-      // Last chunk
+      /* Last chunk */
       if (have <= chunk_size) {
-        // Allocate more data for the next output buffer
+        /* Allocate more data for the last output buffer */
         GstMemory *lastChunkMemory = gst_allocator_alloc(NULL, have, NULL);
         lastChunkMemory = gst_memory_copy(memory, 0, have);
         gst_buffer_insert_memory(outputBuffer, -1, lastChunkMemory);
       } else {
-        // Release memory by itselft since that memory it is
-        // not inserted into the buffer
+        /* Release memory by itselft since that memory it is
+         * not inserted into the buffer */
         gst_memory_unmap(memory, &map_out);
-        // Append to the buffer current memory data
+        /* Append to the buffer current memory data */
         gst_buffer_insert_memory(outputBuffer, -1, memory);
         gst_memory_unref(memory);
-        // Allocate more data for the next output buffer
+        /* Allocate more data for the next output buffer */
         memory = gst_allocator_alloc(NULL, chunk_size, NULL);
         if (!gst_memory_map(memory, &map_out, GST_MAP_WRITE)) {
           return NULL;
@@ -363,7 +363,7 @@ GstBuffer *gst_gzdec_decompress(GstBuffer *inputBuffer)
       }
   } while (strm.avail_out == 0);
 
-  // Clean up the input
+  /* Clean up the input */
   gst_buffer_unmap (inputBuffer, &map_in);
 
   return outputBuffer;
