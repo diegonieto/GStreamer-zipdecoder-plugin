@@ -64,6 +64,8 @@ struct _Gstgzdec
   gboolean silent;
 
   gboolean initialized;
+
+  long long unsigned int input_bytes, output_bytes;
 };
 
 G_END_DECLS

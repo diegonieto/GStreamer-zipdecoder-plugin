@@ -135,7 +135,7 @@ gst_gzdec_class_init (GstgzdecClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
-          FALSE, G_PARAM_READWRITE));
+          TRUE, G_PARAM_READWRITE));
 
   gst_element_class_set_details_simple (gstelement_class,
       "gzdec",
@@ -168,8 +168,10 @@ gst_gzdec_init (Gstgzdec * filter)
   GST_PAD_SET_PROXY_CAPS (filter->srcpad);
   gst_element_add_pad (GST_ELEMENT (filter), filter->srcpad);
 
-  filter->silent = FALSE;
+  filter->silent = TRUE;
   filter->initialized = FALSE;
+  filter->input_bytes = 0;
+  filter->output_bytes = 0;
 }
 
 static void
@@ -180,6 +182,8 @@ gst_gzdec_set_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_SILENT:
+    GST_DEBUG("setting property silent");
+    g_print("setting property silent");
       filter->silent = g_value_get_boolean (value);
       break;
     default:
@@ -197,6 +201,7 @@ gst_gzdec_get_property (GObject * object, guint prop_id,
   switch (prop_id) {
     case PROP_SILENT:
       g_value_set_boolean (value, filter->silent);
+    g_print("getting property silent");
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -222,6 +227,9 @@ gst_gzdec_sink_event (GstPad * pad, GstObject * parent,
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_STREAM_START:
     {
+      if (!filter->silent) {
+        g_print("Initializing decoder\n");
+      }
       GST_DEBUG("GST_EVENT_STREAM_START\n");
       strm.zalloc = Z_NULL;
       strm.zfree = Z_NULL;
@@ -241,6 +249,10 @@ gst_gzdec_sink_event (GstPad * pad, GstObject * parent,
     case GST_EVENT_EOS:
     {
       GST_DEBUG("GST_EVENT_EOS\n");
+      if (!filter->silent) {
+        g_print("Closing decoder. Total input bytes: %lld. Total output bytes: %lld\n",
+                filter->input_bytes, filter->output_bytes);
+      }
       /* clean up and return */
       (void)inflateEnd(&strm);
       ret = gst_pad_event_default (pad, parent, event);
@@ -266,7 +278,7 @@ gst_gzdec_sink_event (GstPad * pad, GstObject * parent,
 }
 
 
-GstBuffer *decompress(GstBuffer *inputBuffer)
+GstBuffer *gst_gzdec_decompress(GstBuffer *inputBuffer)
 {
   // Default ChunkSize
   const unsigned long long int ChunkSize = 16384;
@@ -376,7 +388,11 @@ gst_gzdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     return GST_FLOW_ERROR;
   }
 
-  outbuf = decompress(buf);
+  if (!filter->silent) {
+    filter->input_bytes += gst_buffer_get_size(buf);
+  }
+  
+  outbuf = gst_gzdec_decompress(buf);
 
   gst_buffer_unref(buf);
   if (!outbuf) {
@@ -384,6 +400,9 @@ gst_gzdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     /* something went wrong - signal an error */
     GST_ELEMENT_ERROR (GST_ELEMENT (filter), STREAM, FAILED, (NULL), (NULL));
     return GST_FLOW_ERROR;
+  }
+  if (!filter->silent) {
+      filter->output_bytes += gst_buffer_get_size(outbuf);
   }
 
   return gst_pad_push (filter->srcpad, outbuf);
