@@ -182,8 +182,6 @@ gst_gzdec_set_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_SILENT:
-    GST_DEBUG("setting property silent");
-    g_print("setting property silent");
       filter->silent = g_value_get_boolean (value);
       break;
     default:
@@ -201,7 +199,6 @@ gst_gzdec_get_property (GObject * object, guint prop_id,
   switch (prop_id) {
     case PROP_SILENT:
       g_value_set_boolean (value, filter->silent);
-    g_print("getting property silent");
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -250,7 +247,7 @@ gst_gzdec_sink_event (GstPad * pad, GstObject * parent,
     {
       GST_DEBUG("GST_EVENT_EOS\n");
       if (!filter->silent) {
-        g_print("Closing decoder. Total input bytes: %lld. Total output bytes: %lld\n",
+        g_print("Closing decoder. Total input bytes: %lu. Total output bytes: %lu\n",
                 filter->input_bytes, filter->output_bytes);
       }
       /* clean up and return */
@@ -280,8 +277,8 @@ gst_gzdec_sink_event (GstPad * pad, GstObject * parent,
 
 GstBuffer *gst_gzdec_decompress(GstBuffer *inputBuffer)
 {
-  // Default ChunkSize
-  const unsigned long long int ChunkSize = 16384;
+  // Default chunk_size
+  const unsigned long long int chunk_size = 16384;
 
   GstBuffer *outputBuffer = gst_buffer_new();
   if (!outputBuffer) {
@@ -290,16 +287,16 @@ GstBuffer *gst_gzdec_decompress(GstBuffer *inputBuffer)
   GstMemory *memory = NULL;
 
   // Intermediate buffer
-  guint8 *inputData;
-  gsize inputDataSize;
-  guint8 *outputData;
+  guint8 *input_data;
+  gsize input_data_size;
+  guint8 *output_data;
 
   // Mapping structures
   GstMapInfo map_in;
   GstMapInfo map_out;
 
   if (gst_buffer_map (inputBuffer, &map_in, GST_MAP_READ)) {
-    memory = gst_allocator_alloc(NULL, ChunkSize, NULL);
+    memory = gst_allocator_alloc(NULL, chunk_size, NULL);
 
     if (!gst_memory_map (memory, &map_out, GST_MAP_WRITE)) {
       GST_ELEMENT_ERROR (GST_ELEMENT (NULL), STREAM, FAILED, (NULL), (NULL));
@@ -311,26 +308,26 @@ GstBuffer *gst_gzdec_decompress(GstBuffer *inputBuffer)
   }
 
   // Initialize mapping
-  inputData = map_in.data;
-  inputDataSize = map_in.size;
-  outputData = map_out.data;
+  input_data = map_in.data;
+  input_data_size = map_in.size;
+  output_data = map_out.data;
 
   // Error handler for zlib
   int ret;
   // Available data in the ouput buffer
   unsigned have;
 
-  GST_DEBUG("RAW input data size: %lu\n", inputDataSize);
-  strm.avail_in = inputDataSize;
+  GST_DEBUG("RAW input data size: %lu\n", input_data_size);
+  strm.avail_in = input_data_size;
   if (strm.avail_in == 0) {
       return NULL;
   }
-  strm.next_in = inputData;
+  strm.next_in = input_data;
 
   /* run inflate() on input until output buffer not full */
   do {
-      strm.avail_out = ChunkSize;
-      strm.next_out = outputData;
+      strm.avail_out = chunk_size;
+      strm.next_out = output_data;
       ret = inflate(&strm, Z_NO_FLUSH);
       switch (ret) {
       case Z_NEED_DICT:
@@ -340,12 +337,12 @@ GstBuffer *gst_gzdec_decompress(GstBuffer *inputBuffer)
           (void)inflateEnd(&strm);
           return NULL;
       }
-      have = ChunkSize - strm.avail_out;
+      have = chunk_size - strm.avail_out;
       GST_DEBUG("Decompressed size %d\n", have);
 
 
       // Last chunk
-      if (have <= ChunkSize) {
+      if (have <= chunk_size) {
         // Allocate more data for the next output buffer
         GstMemory *lastChunkMemory = gst_allocator_alloc(NULL, have, NULL);
         lastChunkMemory = gst_memory_copy(memory, 0, have);
@@ -358,11 +355,11 @@ GstBuffer *gst_gzdec_decompress(GstBuffer *inputBuffer)
         gst_buffer_insert_memory(outputBuffer, -1, memory);
         gst_memory_unref(memory);
         // Allocate more data for the next output buffer
-        memory = gst_allocator_alloc(NULL, ChunkSize, NULL);
+        memory = gst_allocator_alloc(NULL, chunk_size, NULL);
         if (!gst_memory_map(memory, &map_out, GST_MAP_WRITE)) {
           return NULL;
         }
-        outputData = map_out.data;
+        output_data = map_out.data;
       }
   } while (strm.avail_out == 0);
 
@@ -391,7 +388,7 @@ gst_gzdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   if (!filter->silent) {
     filter->input_bytes += gst_buffer_get_size(buf);
   }
-  
+
   outbuf = gst_gzdec_decompress(buf);
 
   gst_buffer_unref(buf);
