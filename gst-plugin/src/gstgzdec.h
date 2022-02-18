@@ -66,6 +66,8 @@ struct _Gstgzdec
   gboolean initialized;
 
   gsize input_bytes, output_bytes;
+
+  z_stream strm;
 };
 
 G_END_DECLS

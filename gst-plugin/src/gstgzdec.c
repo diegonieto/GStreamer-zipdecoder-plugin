@@ -69,10 +69,6 @@
 GST_DEBUG_CATEGORY_STATIC (gst_gzdec_debug);
 #define GST_CAT_DEFAULT gst_gzdec_debug
 
-/* zlib structure to inflate */
-static z_stream strm;
-
-
 /* Filter signals and args */
 enum
 {
@@ -228,13 +224,13 @@ gst_gzdec_sink_event (GstPad * pad, GstObject * parent,
         g_print("Initializing decoder\n");
       }
       GST_DEBUG("GST_EVENT_STREAM_START\n");
-      strm.zalloc = Z_NULL;
-      strm.zfree = Z_NULL;
-      strm.opaque = Z_NULL;
-      strm.avail_in = 0;
-      strm.next_in = Z_NULL;
+      filter->strm.zalloc = Z_NULL;
+      filter->strm.zfree = Z_NULL;
+      filter->strm.opaque = Z_NULL;
+      filter->strm.avail_in = 0;
+      filter->strm.next_in = Z_NULL;
       /* 15 zlib fomat, 32 zlib and gzip format, 16 gzip format */
-      ret = inflateInit2(&strm, 32);
+      ret = inflateInit2(&filter->strm, 32);
       if (ret == Z_OK) {
         filter->initialized = TRUE;
       } else {
@@ -251,7 +247,7 @@ gst_gzdec_sink_event (GstPad * pad, GstObject * parent,
                 filter->input_bytes, filter->output_bytes);
       }
       /* clean up and return */
-      (void)inflateEnd(&strm);
+      (void)inflateEnd(&filter->strm);
       ret = gst_pad_event_default (pad, parent, event);
       break;
     }
@@ -275,7 +271,7 @@ gst_gzdec_sink_event (GstPad * pad, GstObject * parent,
 }
 
 
-GstBuffer *gst_gzdec_decompress(GstBuffer *inputBuffer)
+GstBuffer *gst_gzdec_decompress(GstBuffer *inputBuffer, Gstgzdec *filter)
 {
   /* Default chunk_size */
   const unsigned long long int chunk_size = 16384;
@@ -318,26 +314,26 @@ GstBuffer *gst_gzdec_decompress(GstBuffer *inputBuffer)
   unsigned have;
 
   GST_DEBUG("RAW input data size: %lu\n", input_data_size);
-  strm.avail_in = input_data_size;
-  if (strm.avail_in == 0) {
+  filter->strm.avail_in = input_data_size;
+  if (filter->strm.avail_in == 0) {
       return NULL;
   }
-  strm.next_in = input_data;
+  filter->strm.next_in = input_data;
 
   /* run inflate() on input until output buffer not full */
   do {
-      strm.avail_out = chunk_size;
-      strm.next_out = output_data;
-      ret = inflate(&strm, Z_NO_FLUSH);
+      filter->strm.avail_out = chunk_size;
+      filter->strm.next_out = output_data;
+      ret = inflate(&filter->strm, Z_NO_FLUSH);
       switch (ret) {
       case Z_NEED_DICT:
           ret = Z_DATA_ERROR;     /* and fall through */
       case Z_DATA_ERROR:
       case Z_MEM_ERROR:
-          (void)inflateEnd(&strm);
+          (void)inflateEnd(&filter->strm);
           return NULL;
       }
-      have = chunk_size - strm.avail_out;
+      have = chunk_size - filter->strm.avail_out;
       GST_DEBUG("Decompressed size %d\n", have);
 
 
@@ -361,7 +357,7 @@ GstBuffer *gst_gzdec_decompress(GstBuffer *inputBuffer)
         }
         output_data = map_out.data;
       }
-  } while (strm.avail_out == 0);
+  } while (filter->strm.avail_out == 0);
 
   /* Clean up the input */
   gst_buffer_unmap (inputBuffer, &map_in);
@@ -389,7 +385,7 @@ gst_gzdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     filter->input_bytes += gst_buffer_get_size(buf);
   }
 
-  outbuf = gst_gzdec_decompress(buf);
+  outbuf = gst_gzdec_decompress(buf, filter);
 
   gst_buffer_unref(buf);
   if (!outbuf) {
